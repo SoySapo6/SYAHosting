@@ -489,7 +489,7 @@
       const connectSocket = (callback) => {
         const authData = JSON.parse(localStorage.getItem('syaHostAuth') || '{}');
         
-        socket = io("https://empty-shalne-soymaycol-bc16da7c.koyeb.app", {
+        socket = io("https://syahost-terminal-xv4b.onrender.com", {
           auth: { token: authData.token }
         });
 
