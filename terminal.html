@@ -124,7 +124,7 @@
       align-items: center;
     }
 
-    .logout-btn, .back-btn {
+    .back-btn {
       background: transparent;
       border: none;
       color: #999;
@@ -135,15 +135,33 @@
       align-items: center;
       border-radius: 4px;
       transition: all 0.3s;
-      margin-right: 5px;
+      margin-right: 10px;
     }
 
-    .logout-btn:hover, .back-btn:hover {
+    .back-btn:hover {
+      color: #fff;
+      background-color: rgba(255, 138, 0, 0.2);
+    }
+
+    .logout-btn {
+      background: transparent;
+      border: none;
+      color: #999;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 6px 10px;
+      display: flex;
+      align-items: center;
+      border-radius: 4px;
+      transition: all 0.3s;
+    }
+
+    .logout-btn:hover {
       color: #fff;
       background-color: rgba(255, 80, 80, 0.2);
     }
 
-    .logout-icon, .back-icon {
+    .logout-icon {
       width: 14px;
       height: 14px;
       margin-left: 5px;
@@ -195,14 +213,14 @@
       font-family: 'Consolas', 'Monaco', monospace;
     }
 
-    #terminal-input:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
     #terminal-input::placeholder {
       color: #555;
       opacity: 0.7;
+    }
+
+    #terminal-input:disabled {
+      color: #777;
+      cursor: not-allowed;
     }
 
     .command-loading {
@@ -272,32 +290,7 @@
 
     .connection-status.installing::before {
       background-color: #FF8A00;
-      animation: pulse 1s infinite;
-    }
-
-    .installation-warning {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background-color: rgba(255, 138, 0, 0.95);
-      color: white;
-      padding: 20px 30px;
-      border-radius: 10px;
-      font-size: 16px;
-      font-weight: bold;
-      text-align: center;
-      z-index: 1000;
-      display: none;
-      box-shadow: 0 10px 30px rgba(255, 138, 0, 0.5);
-      border: 2px solid #FF8A00;
-    }
-
-    .installation-warning::before {
-      content: "⚙️";
-      display: block;
-      font-size: 24px;
-      margin-bottom: 10px;
+      animation: pulse 1.5s infinite;
     }
 
     ::-webkit-scrollbar {
@@ -329,7 +322,7 @@
 </head>
 <body>
   <div class="container">
-    <div class="terminal-container">
+    <div class="terminal-container" id="terminal-container">
       <div class="terminal-header">
         <div class="terminal-controls">
           <div class="terminal-control close"></div>
@@ -338,16 +331,13 @@
         </div>
         <div class="terminal-title">
           <img src="https://files.catbox.moe/qmk9cm.png" alt="SYA HOST Logo">
-          SYA HOST SERVIDOR
+          SYA HOST Terminal
           <span class="user-info" id="user-info">...</span>
           <span class="badge-live">24/7</span>
         </div>
         <div class="terminal-actions">
           <button class="back-btn" id="back-btn">
-            Volver al Panel
-            <svg class="back-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M19 12H5M12 19l-7-7 7-7"/>
-            </svg>
+            ← Panel
           </button>
           <button class="logout-btn" id="logout-btn">
             Cerrar sesión
@@ -366,7 +356,7 @@
           <input
             type="text"
             id="terminal-input"
-            placeholder="Servidor en instalación..."
+            placeholder="Esperando a que termine la instalación..."
             autocomplete="off"
             disabled
           >
@@ -380,11 +370,6 @@
     Servidor en instalación
   </div>
 
-  <div id="installation-warning" class="installation-warning">
-    Servidor en instalación<br>
-    Por favor espera...
-  </div>
-
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -396,137 +381,133 @@
       const terminalInput = document.getElementById('terminal-input');
       const connectionStatus = document.getElementById('connection-status');
       const commandLoadingElement = document.getElementById('command-loading');
-      const installationWarning = document.getElementById('installation-warning');
 
       // Variables del socket y estado
       let socket = null;
       let commandHistory = [];
       let historyIndex = -1;
-      let installationComplete = false;
-      let serverData = null;
-      let userData = null;
+      let isInstalling = true;
+      let serverReady = false;
 
       // Verificar autenticación y datos del servidor
-      const checkAuthAndServer = () => {
-        userData = JSON.parse(localStorage.getItem('syaHostAuth') || '{}');
-        serverData = JSON.parse(localStorage.getItem('syaHostServer') || '{}');
-
-        if (!userData.token || !userData.username) {
+      const checkAuth = () => {
+        const authData = JSON.parse(localStorage.getItem('syaHostAuth') || '{}');
+        const serverData = JSON.parse(localStorage.getItem('syaHostServer') || '{}');
+        
+        if (!authData.token || !authData.username) {
           window.location.href = 'index.html';
           return false;
         }
-
+        
         if (!serverData.gitUrl || !serverData.mainFile) {
           window.location.href = 'index.html';
           return false;
         }
-
-        return true;
+        
+        return { authData, serverData };
       };
 
-      // Extraer nombre del repositorio
+      // Función para extraer nombre del repositorio
       const getRepoName = (url) => {
         const match = url.match(/\/([^\/]+)\.git$/);
         return match ? match[1] : url.split('/').pop().replace('.git', '');
       };
 
       // Simular instalación del servidor
-      const simulateInstallation = () => {
+      const simulateInstallation = (serverData) => {
         const repoName = getRepoName(serverData.gitUrl);
-        const installationSteps = [
-          "🚀 Iniciando instalación del servidor SYA HOST...",
-          "📦 apt update",
-          "✅ Paquetes actualizados correctamente",
-          "📦 apt install git",
-          "✅ Git instalado correctamente",
-          "📦 apt install node",
-          "✅ Node.js instalado correctamente",
-          `📦 git clone ${serverData.gitUrl}`,
-          "✅ Repositorio clonado correctamente",
-          `📁 cd ${repoName}`,
-          "📦 git pull",
-          "✅ Repositorio actualizado",
-          `🚀 node ${serverData.mainFile}`,
-          "✅ Servidor iniciado correctamente",
-          "",
-          "🎉 ¡Instalación completada!",
-          "💡 Ahora puedes usar el terminal normalmente.",
-          ""
+        const installSteps = [
+          { text: "⚡ Iniciando instalación del servidor...\n", delay: 1000 },
+          { text: "📦 Ejecutando: apt update\n", delay: 2000 },
+          { text: "✅ Paquetes actualizados\n", delay: 1000 },
+          { text: "📦 Ejecutando: apt install git\n", delay: 1500 },
+          { text: "✅ Git instalado correctamente\n", delay: 1000 },
+          { text: "📦 Ejecutando: apt install node\n", delay: 2000 },
+          { text: "✅ Node.js instalado correctamente\n", delay: 1000 },
+          { text: `📦 Clonando repositorio: ${serverData.gitUrl}\n`, delay: 2500 },
+          { text: `✅ Repositorio clonado en /${repoName}\n`, delay: 1000 },
+          { text: `📂 Cambiando al directorio: cd ${repoName}\n`, delay: 500 },
+          { text: "📦 Ejecutando: git pull\n", delay: 1500 },
+          { text: "✅ Repositorio actualizado\n", delay: 1000 },
+          { text: `🚀 Ejecutando: node ${serverData.mainFile}\n`, delay: 1500 },
+          { text: "✅ Servidor iniciado correctamente\n", delay: 1000 },
+          { text: "🎉 ¡Instalación completada! Terminal listo para usar.\n\n", delay: 1000 }
         ];
 
         let currentStep = 0;
-        const interval = setInterval(() => {
-          if (currentStep < installationSteps.length) {
-            terminalOutput.textContent += installationSteps[currentStep] + "\n";
+        
+        const executeStep = () => {
+          if (currentStep < installSteps.length) {
+            const step = installSteps[currentStep];
+            terminalOutput.textContent += step.text;
             terminalOutput.scrollTop = terminalOutput.scrollHeight;
+            
             currentStep++;
-
-            // Cuando llegue al comando node, completar instalación
-            if (installationSteps[currentStep - 1].includes(`node ${serverData.mainFile}`)) {
+            
+            if (currentStep === installSteps.length) {
+              // Instalación completada
               setTimeout(() => {
-                completeInstallation();
-              }, 2000);
+                isInstalling = false;
+                serverReady = true;
+                terminalInput.disabled = false;
+                terminalInput.placeholder = "Escribe un comando...";
+                connectionStatus.className = "connection-status connected";
+                connectionStatus.textContent = "Servidor activo";
+                terminalInput.focus();
+                connectSocket();
+              }, step.delay);
+            } else {
+              setTimeout(executeStep, step.delay);
             }
-          } else {
-            clearInterval(interval);
           }
-        }, 800);
+        };
+
+        executeStep();
       };
 
-      // Completar instalación y habilitar terminal
-      const completeInstallation = () => {
-        installationComplete = true;
-        installationWarning.style.display = 'none';
-        
-        // Cambiar estado de conexión
-        connectionStatus.className = "connection-status connected";
-        connectionStatus.textContent = "Servidor Activo";
-        
-        // Habilitar input del terminal
-        terminalInput.disabled = false;
-        terminalInput.placeholder = "Escribe un comando (ej: ls, pwd, help)...";
-        terminalInput.focus();
-
-        // Conectar socket
-        connectSocket();
-      };
-
-      // Conectar el socket
+      // Conectar el socket después de la instalación
       const connectSocket = () => {
+        const authData = JSON.parse(localStorage.getItem('syaHostAuth') || '{}');
+        
         socket = io("https://empty-shalne-soymaycol-bc16da7c.koyeb.app", {
-          auth: { token: userData.token }
+          auth: { token: authData.token }
         });
 
-        // Eventos del socket
         socket.on("connect", () => {
-          terminalOutput.textContent += "\n🌐 Conectado al servidor SYA HOST 24/7\n";
-          terminalOutput.textContent += "📌 Terminal listo para comandos.\n\n";
-          terminalOutput.scrollTop = terminalOutput.scrollHeight;
+          console.log("Socket conectado");
         });
 
         socket.on("disconnect", () => {
-          terminalOutput.textContent += "\n\n⚠️ [SYA HOST] Conexión perdida. Intentando reconectar...\n";
-          commandLoadingElement.style.display = 'none';
+          connectionStatus.className = "connection-status disconnected";
+          connectionStatus.textContent = "Desconectado";
         });
 
         socket.on("connect_error", (err) => {
           console.error("Error de conexión:", err.message);
-          terminalOutput.textContent += `\n\n❌ [SYA HOST] Error de conexión: ${err.message}\n`;
-          commandLoadingElement.style.display = 'none';
-
-          if (err.message === "Autenticación requerida" || err.message === "Token inválido") {
-            logout();
-          }
         });
 
         socket.on("output", (data) => {
-          terminalOutput.textContent += data;
+          // Verificar si el proceso fue killed
+          if (data.includes("killed") || data.includes("Killed") || data.includes("terminated")) {
+            terminalOutput.textContent += data;
+            terminalOutput.textContent += "\n🔄 Proceso terminado. Reiniciando servidor...\n";
+            
+            const serverData = JSON.parse(localStorage.getItem('syaHostServer') || '{}');
+            setTimeout(() => {
+              terminalOutput.textContent += `🚀 Ejecutando: node ${serverData.mainFile}\n`;
+              terminalOutput.textContent += "✅ Servidor reiniciado correctamente\n\n";
+              terminalOutput.scrollTop = terminalOutput.scrollHeight;
+            }, 2000);
+          } else {
+            terminalOutput.textContent += data;
+          }
+          
           terminalOutput.scrollTop = terminalOutput.scrollHeight;
           commandLoadingElement.style.display = 'none';
         });
 
         socket.on("session", (data) => {
-          userInfoElement.textContent = `${data.username} (${data.sessionId})`;
+          userInfoElement.textContent = `${data.username}`;
         });
       };
 
@@ -539,11 +520,16 @@
         window.location.href = 'index.html';
       };
 
+      // Event listeners
+      backBtn.addEventListener('click', () => {
+        window.location.href = 'index.html';
+      });
+
+      logoutBtn.addEventListener('click', logout);
+
       // Manejo de comandos en el terminal
       terminalInput.addEventListener('keydown', (e) => {
-        if (!installationComplete) return;
-
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && serverReady && !isInstalling) {
           const command = terminalInput.value.trim();
 
           if (command !== '' && socket && socket.connected) {
@@ -552,24 +538,19 @@
             historyIndex = commandHistory.length;
 
             // Mostrar comando en terminal
-            terminalOutput.textContent += `SYAHost ~$ ${command}\n`;
+            terminalOutput.textContent += `$ ${command}\n`;
 
-            // Manejar comandos personalizados
-            const customResponse = handleCustomCommands(command);
-            if (customResponse !== null) {
-              terminalOutput.textContent += customResponse;
-              terminalOutput.scrollTop = terminalOutput.scrollHeight;
-            } else {
-              // Enviar comando al servidor
-              socket.emit('command', command);
-              commandLoadingElement.style.display = 'inline-block';
-            }
+            // Enviar comando al servidor
+            socket.emit('command', command);
 
+            // Mostrar spinner de carga
+            commandLoadingElement.style.display = 'inline-block';
+
+            // Limpiar input
             terminalInput.value = '';
           } else if (command !== '' && (!socket || !socket.connected)) {
              terminalOutput.textContent += `$ ${command}\n`;
-             terminalOutput.textContent += "❌ [SYA HOST] Error: No conectado al servidor.\n";
-             terminalOutput.scrollTop = terminalOutput.scrollHeight;
+             terminalOutput.textContent += "❌ Error: No conectado al servidor.\n";
              terminalInput.value = '';
           }
 
@@ -577,17 +558,18 @@
           e.preventDefault();
         }
         // Navegación en historial
-        else if (e.key === 'ArrowUp') {
+        else if (e.key === 'ArrowUp' && serverReady) {
           if (historyIndex > 0) {
             historyIndex--;
             terminalInput.value = commandHistory[historyIndex];
             setTimeout(() => {
-              terminalInput.setSelectionRange(terminalInput.value.length, terminalInput.value.length);
+              terminalInput.selectionStart = terminalInput.value.length;
+              terminalInput.selectionEnd = terminalInput.value.length;
             }, 0);
           }
           e.preventDefault();
         }
-        else if (e.key === 'ArrowDown') {
+        else if (e.key === 'ArrowDown' && serverReady) {
           if (historyIndex < commandHistory.length - 1) {
             historyIndex++;
             terminalInput.value = commandHistory[historyIndex];
@@ -599,82 +581,27 @@
         }
       });
 
-      // Comandos personalizados
-      const handleCustomCommands = (command) => {
-        if (command === 'help') {
-          return `
-📋 Comandos disponibles del servidor:
-  - help        : Muestra esta ayuda
-  - clear       : Limpia la pantalla
-  - server-info : Información del servidor actual
-  - status      : Estado del servidor
-  - whoami      : Muestra tu usuario actual
-  - ls          : Lista archivos
-  - mkdir       : Crea un directorio
-  - cd          : Cambia de directorio
-  - touch       : Crea un archivo
-  - cat         : Muestra el contenido de un archivo
-  - rm          : Elimina un archivo
-  - npm         : Comandos npm disponibles
-  - restart     : Reinicia el servidor
-`;
-        } else if (command === 'clear') {
-          terminalOutput.textContent = '';
-          return '';
-        } else if (command === 'server-info') {
-          return `
-🖥️  Información del Servidor SYA HOST:
-📂 Repositorio: ${serverData.gitUrl}
-📄 Archivo Principal: ${serverData.mainFile}
-👤 Usuario: ${userData.username}
-📅 Creado: ${serverData.createdAt}
-🔄 Estado: Activo 24/7
-`;
-        } else if (command === 'restart') {
-          return `
-🔄 Reiniciando servidor...
-📦 git pull
-✅ Repositorio actualizado
-🚀 node ${serverData.mainFile}
-✅ Servidor reiniciado correctamente
-`;
-        }
-        return null;
-      };
-
-      // Event listeners para botones
-      logoutBtn.addEventListener('click', logout);
-      
-      backBtn.addEventListener('click', () => {
-        window.location.href = 'index.html';
-      });
-
       // Enfocar input al hacer clic en terminal body
       document.querySelector('.terminal-body').addEventListener('click', () => {
-        if (installationComplete) {
+        if (serverReady && !isInstalling) {
           terminalInput.focus();
         }
       });
 
       // Inicialización
-      if (checkAuthAndServer()) {
-        userInfoElement.textContent = userData.username;
+      const authCheck = checkAuth();
+      if (authCheck) {
+        const { authData, serverData } = authCheck;
+        userInfoElement.textContent = authData.username;
         
-        // Mostrar advertencia de instalación
-        installationWarning.style.display = 'block';
-        setTimeout(() => {
-          installationWarning.style.display = 'none';
-        }, 3000);
-
-        // Mostrar información inicial
-        terminalOutput.textContent = `⚡ SYA HOST Terminal 24/7 - Servidor Personal\n`;
-        terminalOutput.textContent += `👤 Usuario: ${userData.username}\n`;
-        terminalOutput.textContent += `📂 Repositorio: ${serverData.gitUrl}\n`;
-        terminalOutput.textContent += `📄 Archivo: ${serverData.mainFile}\n\n`;
-
+        // Mostrar mensaje inicial
+        terminalOutput.textContent = `🔧 SYA HOST - Configurando servidor para ${authData.username}\n`;
+        terminalOutput.textContent += `📋 Repositorio: ${serverData.gitUrl}\n`;
+        terminalOutput.textContent += `📄 Archivo principal: ${serverData.mainFile}\n\n`;
+        
         // Iniciar simulación de instalación
         setTimeout(() => {
-          simulateInstallation();
+          simulateInstallation(serverData);
         }, 1000);
       }
     });
