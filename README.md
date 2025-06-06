@@ -55,8 +55,8 @@ SYAHosting está en constante evolución. ¡Cada día trabajamos para mejorar tu
 ### 📱 Contacto & Comunidad
 
 - 🌐 Sitio oficial: [próximamente]
-- 💬 Discord: [link]
-- 🐙 GitHub: [link al repositorio]
+- 💬 Discord:
+- 🐙 GitHub: 
 - 📧 Correo: contacto@syahosting.com
 
 ---
