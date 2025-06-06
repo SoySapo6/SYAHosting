@@ -413,6 +413,21 @@
         return match ? match[1] : url.split('/').pop().replace('.git', '');
       };
 
+      // Función para ejecutar comando automáticamente
+      const executeAutoCommand = (command) => {
+        if (socket && socket.connected) {
+          // Mostrar comando en terminal
+          terminalOutput.textContent += `$ ${command}\n`;
+          terminalOutput.scrollTop = terminalOutput.scrollHeight;
+          
+          // Enviar comando al servidor
+          socket.emit('command', command);
+          
+          // Mostrar spinner de carga
+          commandLoadingElement.style.display = 'inline-block';
+        }
+      };
+
       // Simular instalación del servidor
       const simulateInstallation = (serverData) => {
         const repoName = getRepoName(serverData.gitUrl);
@@ -429,9 +444,7 @@
           { text: `📂 Cambiando al directorio: cd ${repoName}\n`, delay: 500 },
           { text: "📦 Ejecutando: git pull\n", delay: 1500 },
           { text: "✅ Repositorio actualizado\n", delay: 1000 },
-          { text: `🚀 Ejecutando: node ${serverData.mainFile}\n`, delay: 1500 },
-          { text: "✅ Servidor iniciado correctamente\n", delay: 1000 },
-          { text: "🎉 ¡Instalación completada! Terminal listo para usar.\n\n", delay: 1000 }
+          { text: "🎉 ¡Instalación completada! Iniciando servidor...\n\n", delay: 1000 }
         ];
 
         let currentStep = 0;
@@ -454,7 +467,14 @@
                 connectionStatus.className = "connection-status connected";
                 connectionStatus.textContent = "Servidor activo";
                 terminalInput.focus();
-                connectSocket();
+                
+                // Conectar socket y luego ejecutar el comando automáticamente
+                connectSocket(() => {
+                  // Ejecutar automáticamente node ${mainFile} después de conectar
+                  setTimeout(() => {
+                    executeAutoCommand(`node ${serverData.mainFile}`);
+                  }, 1000);
+                });
               }, step.delay);
             } else {
               setTimeout(executeStep, step.delay);
@@ -466,7 +486,7 @@
       };
 
       // Conectar el socket después de la instalación
-      const connectSocket = () => {
+      const connectSocket = (callback) => {
         const authData = JSON.parse(localStorage.getItem('syaHostAuth') || '{}');
         
         socket = io("https://empty-shalne-soymaycol-bc16da7c.koyeb.app", {
@@ -475,6 +495,7 @@
 
         socket.on("connect", () => {
           console.log("Socket conectado");
+          if (callback) callback();
         });
 
         socket.on("disconnect", () => {
@@ -494,9 +515,7 @@
             
             const serverData = JSON.parse(localStorage.getItem('syaHostServer') || '{}');
             setTimeout(() => {
-              terminalOutput.textContent += `🚀 Ejecutando: node ${serverData.mainFile}\n`;
-              terminalOutput.textContent += "✅ Servidor reiniciado correctamente\n\n";
-              terminalOutput.scrollTop = terminalOutput.scrollHeight;
+              executeAutoCommand(`node ${serverData.mainFile}`);
             }, 2000);
           } else {
             terminalOutput.textContent += data;
