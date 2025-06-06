@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SYA HOST - Crear Servidor</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Arial', sans-serif;
+    }
+
+    body {
+      background-color: #121212;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+      color: #f5f5f5;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
+    }
+
+    .server-container {
+      background-color: #1a1a1a;
+      border-radius: 10px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(255, 80, 80, 0.25);
+      border: 1px solid rgba(255, 100, 100, 0.3);
+      display: none;
+    }
+
+    .auth-container {
+      background-color: #1a1a1a;
+      border-radius: 10px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(255, 80, 80, 0.25);
+      border: 1px solid rgba(255, 100, 100, 0.3);
+    }
+
+    .auth-header, .server-header {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+
+    .auth-header h2, .server-header h2 {
+      color: #ffffff;
+      font-size: 24px;
+      margin-top: 10px;
+      background: linear-gradient(90deg, #FF8A00, #FF4D4D);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-weight: bold;
+    }
+    
+    .auth-header .subtext, .server-header .subtext {
+      color: #cccccc;
+      font-size: 14px;
+      margin-top: 8px;
+    }
+
+    .badge-24-7 {
+      background: linear-gradient(90deg, #FF8A00, #FF4D4D);
+      color: white;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+      display: inline-block;
+      margin-top: 8px;
+    }
+
+    .auth-header img, .server-header img {
+      width: 140px;
+      margin-bottom: 15px;
+    }
+
+    .auth-form, .server-form {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: #ccc;
+    }
+
+    .form-group input, .form-group textarea {
+      width: 100%;
+      padding: 12px;
+      background-color: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 6px;
+      font-size: 14px;
+      color: #fff;
+      transition: all 0.3s ease;
+    }
+
+    .form-group textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .form-group input:focus, .form-group textarea:focus {
+      border-color: #FF8A00;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(255, 138, 0, 0.3);
+    }
+
+    .btn {
+      padding: 14px;
+      background: linear-gradient(90deg, #FF8A00, #FF4D4D);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      transition: all 0.3s;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      background: linear-gradient(90deg, #FF9F2F, #FF6B6B);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(255, 80, 80, 0.3);
+    }
+
+    .btn:disabled {
+      background: #555;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: #ccc;
+      border: 1px solid #444;
+      margin-top: 12px;
+    }
+
+    .btn-secondary:hover {
+      background-color: #2a2a2a;
+      color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .error-message, .success-message {
+      font-size: 14px;
+      margin-top: 15px;
+      text-align: center;
+      display: none;
+      padding: 8px;
+      border-radius: 4px;
+    }
+
+    .error-message {
+      color: #ff5f56;
+      background-color: rgba(255, 95, 86, 0.1);
+    }
+
+    .success-message {
+      color: #27c93f;
+      background-color: rgba(39, 201, 63, 0.1);
+    }
+
+    .features {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 15px;
+      margin-bottom: 20px;
+    }
+    
+    .feature {
+      text-align: center;
+      color: #ccc;
+      font-size: 12px;
+      flex: 1;
+      padding: 10px;
+    }
+    
+    .feature i {
+      color: #FF8A00;
+      font-size: 18px;
+      margin-bottom: 5px;
+      display: block;
+    }
+
+    .server-status {
+      background-color: #2a2a2a;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid #444;
+    }
+
+    .status-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .status-badge.active {
+      background-color: rgba(39, 201, 63, 0.2);
+      color: #27c93f;
+      border: 1px solid rgba(39, 201, 63, 0.3);
+    }
+
+    .status-badge.inactive {
+      background-color: rgba(255, 95, 86, 0.2);
+      color: #ff5f56;
+      border: 1px solid rgba(255, 95, 86, 0.3);
+    }
+
+    .server-info {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .info-item {
+      background-color: #1a1a1a;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid #333;
+    }
+
+    .info-item label {
+      color: #999;
+      font-size: 12px;
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .info-item span {
+      color: #fff;
+      font-size: 14px;
+      word-break: break-all;
+    }
+
+    .loading-spinner {
+      display: none;
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255, 138, 0, 0.3);
+      border-top-color: #FF8A00;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .auth-container, .server-container {
+      animation: fadeIn 0.5s ease-out;
+    }
+
+    .command-preview {
+      background-color: #0d0d0d;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 15px;
+      margin-top: 15px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 13px;
+      color: #f0f0f0;
+      line-height: 1.4;
+      overflow-x: auto;
+    }
+
+    .command-preview::before {
+      content: "Comando de instalación:";
+      display: block;
+      color: #FF8A00;
+      font-weight: bold;
+      margin-bottom: 10px;
+      font-family: 'Arial', sans-serif;
+    }
+
+    .input-help {
+      font-size: 12px;
+      color: #999;
+      margin-top: 5px;
+    }
+  </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Contenedor de autenticación -->
+    <div class="auth-container" id="auth-container">
+      <div class="auth-header">
+        <img src="https://files.catbox.moe/qmk9cm.png" alt="SYA HOST Logo">
+        <h2>SYA HOST Panel</h2>
+        <div class="badge-24-7">DISPONIBLE 24/7</div>
+        <p class="subtext">Crea y gestiona tu servidor Node.js</p>
+      </div>
+      
+      <div class="features">
+        <div class="feature">
+          <i class="fas fa-server"></i>
+          <span>Servidor Único</span>
+        </div>
+        <div class="feature">
+          <i class="fab fa-git-alt"></i>
+          <span>Integración Git</span>
+        </div>
+        <div class="feature">
+          <i class="fas fa-terminal"></i>
+          <span>Terminal Completo</span>
+        </div>
+      </div>
+
+      <form class="auth-form" id="login-form">
+        <div class="form-group">
+          <label for="login-username">Nombre de usuario</label>
+          <input type="text" id="login-username" required placeholder="Ingresa tu usuario">
+        </div>
+        <div class="form-group">
+          <label for="login-password">Contraseña</label>
+          <input type="password" id="login-password" required placeholder="Ingresa tu contraseña">
+        </div>
+        <button type="submit" class="btn">Acceder al Panel</button>
+        <button type="button" class="btn btn-secondary" id="show-register">Crear cuenta</button>
+        <div class="error-message" id="login-error"></div>
+      </form>
+
+      <form class="auth-form" id="register-form" style="display: none;">
+        <div class="form-group">
+          <label for="register-username">Nombre de usuario</label>
+          <input type="text" id="register-username" required placeholder="Elige un nombre de usuario">
+        </div>
+        <div class="form-group">
+          <label for="register-password">Contraseña</label>
+          <input type="password" id="register-password" required placeholder="Crea una contraseña segura">
+        </div>
+        <div class="form-group">
+          <label for="register-confirm">Confirmar contraseña</label>
+          <input type="password" id="register-confirm" required placeholder="Repite la contraseña">
+        </div>
+        <button type="submit" class="btn">Registrarse</button>
+        <button type="button" class="btn btn-secondary" id="show-login">Volver a iniciar sesión</button>
+        <div class="error-message" id="register-error"></div>
+      </form>
+    </div>
+
+    <!-- Contenedor del servidor -->
+    <div class="server-container" id="server-container">
+      <div class="server-header">
+        <img src="https://files.catbox.moe/qmk9cm.png" alt="SYA HOST Logo">
+        <h2>Gestión de Servidor</h2>
+        <p class="subtext">Configura tu servidor Node.js con Git</p>
+      </div>
+
+      <!-- Estado del servidor -->
+      <div class="server-status" id="server-status">
+        <div class="status-header">
+          <h3>Estado del Servidor</h3>
+          <span class="status-badge inactive" id="status-badge">Inactivo</span>
+        </div>
+        <div class="server-info" id="server-info">
+          <div class="info-item">
+            <label>Repositorio Git:</label>
+            <span id="current-repo">No configurado</span>
+          </div>
+          <div class="info-item">
+            <label>Archivo Principal:</label>
+            <span id="current-file">No configurado</span>
+          </div>
+          <div class="info-item">
+            <label>Usuario:</label>
+            <span id="current-user">-</span>
+          </div>
+          <div class="info-item">
+            <label>Fecha de Creación:</label>
+            <span id="creation-date">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Formulario de configuración -->
+      <form class="server-form" id="server-form">
+        <div class="form-group">
+          <label for="git-url">URL del Repositorio Git</label>
+          <input type="url" id="git-url" required placeholder="https://github.com/usuario/repositorio.git">
+          <div class="input-help">Ingresa la URL completa del repositorio Git que deseas clonar</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="main-file">Archivo Principal</label>
+          <input type="text" id="main-file" required placeholder="index.js" value="index.js">
+          <div class="input-help">Archivo que se ejecutará con Node.js (ej: index.js, app.js, server.js)</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="description">Descripción del Proyecto (Opcional)</label>
+          <textarea id="description" placeholder="Describe brevemente tu proyecto..."></textarea>
+        </div>
+
+        <div class="command-preview" id="command-preview">
+          apt update && apt install git && apt install node && git clone [URL_REPO] && cd [NOMBRE_REPO] && git pull && node [ARCHIVO_PRINCIPAL]
+        </div>
+
+        <button type="submit" class="btn" id="create-btn">Crear Servidor</button>
+        <button type="button" class="btn btn-secondary" id="terminal-btn" style="display: none;">
+          <i class="fas fa-terminal"></i> Abrir Terminal
+        </button>
+        <button type="button" class="btn btn-secondary" id="logout-btn">Cerrar Sesión</button>
+        
+        <div class="loading-spinner" id="loading-spinner"></div>
+        <div class="error-message" id="server-error"></div>
+        <div class="success-message" id="server-success"></div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Elementos DOM
+      const authContainer = document.getElementById('auth-container');
+      const serverContainer = document.getElementById('server-container');
+      const loginForm = document.getElementById('login-form');
+      const registerForm = document.getElementById('register-form');
+      const serverForm = document.getElementById('server-form');
+      const showRegisterBtn = document.getElementById('show-register');
+      const showLoginBtn = document.getElementById('show-login');
+      const logoutBtn = document.getElementById('logout-btn');
+      const terminalBtn = document.getElementById('terminal-btn');
+      const createBtn = document.getElementById('create-btn');
+      
+      // Elementos de error y éxito
+      const loginError = document.getElementById('login-error');
+      const registerError = document.getElementById('register-error');
+      const serverError = document.getElementById('server-error');
+      const serverSuccess = document.getElementById('server-success');
+      const loadingSpinner = document.getElementById('loading-spinner');
+      
+      // Elementos del servidor
+      const statusBadge = document.getElementById('status-badge');
+      const currentRepo = document.getElementById('current-repo');
+      const currentFile = document.getElementById('current-file');
+      const currentUser = document.getElementById('current-user');
+      const creationDate = document.getElementById('creation-date');
+      const commandPreview = document.getElementById('command-preview');
+      
+      // Campos del formulario
+      const gitUrlInput = document.getElementById('git-url');
+      const mainFileInput = document.getElementById('main-file');
+      const descriptionInput = document.getElementById('description');
+
+      // Función para mostrar/ocultar mensajes
+      const showMessage = (element, message, isError = false) => {
+        element.textContent = message;
+        element.style.display = 'block';
+        setTimeout(() => {
+          element.style.display = 'none';
+        }, 5000);
+      };
+
+      // Función para extraer nombre del repositorio de la URL
+      const getRepoName = (url) => {
+        const match = url.match(/\/([^\/]+)\.git$/);
+        return match ? match[1] : url.split('/').pop().replace('.git', '');
+      };
+
+      // Actualizar preview del comando
+      const updateCommandPreview = () => {
+        const gitUrl = gitUrlInput.value.trim();
+        const mainFile = mainFileInput.value.trim() || 'index.js';
+        const repoName = gitUrl ? getRepoName(gitUrl) : '[NOMBRE_REPO]';
+        
+        const command = `apt update && apt install git && apt install node && git clone ${gitUrl || '[URL_REPO]'} && cd ${repoName} && git pull && node ${mainFile}`;
+        commandPreview.textContent = command;
+      };
+
+      // Event listeners para actualizar preview
+      gitUrlInput.addEventListener('input', updateCommandPreview);
+      mainFileInput.addEventListener('input', updateCommandPreview);
+
+      // Función para cargar datos del servidor
+      const loadServerData = () => {
+        const serverData = JSON.parse(localStorage.getItem('syaHostServer') || '{}');
+        const userData = JSON.parse(localStorage.getItem('syaHostAuth') || '{}');
+        
+        if (serverData.gitUrl) {
+          currentRepo.textContent = serverData.gitUrl;
+          currentFile.textContent = serverData.mainFile;
+          currentUser.textContent = userData.username || 'Usuario';
+          creationDate.textContent = serverData.createdAt || new Date().toLocaleDateString();
+          statusBadge.textContent = 'Activo';
+          statusBadge.className = 'status-badge active';
+          
+          // Mostrar botón de terminal y ocultar crear
+          createBtn.style.display = 'none';
+          terminalBtn.style.display = 'block';
+          
+          // Deshabilitar inputs
+          gitUrlInput.value = serverData.gitUrl;
+          mainFileInput.value = serverData.mainFile;
+          descriptionInput.value = serverData.description || '';
+          gitUrlInput.disabled = true;
+          mainFileInput.disabled = true;
+          descriptionInput.disabled = true;
+          
+          updateCommandPreview();
+        } else {
+          const userData = JSON.parse(localStorage.getItem('syaHostAuth') || '{}');
+          currentUser.textContent = userData.username || 'Usuario';
+        }
+      };
+
+      // Función para verificar autenticación
+      const checkAuth = () => {
+        const authData = JSON.parse(localStorage.getItem('syaHostAuth') || '{}');
+        if (authData.token && authData.username) {
+          authContainer.style.display = 'none';
+          serverContainer.style.display = 'block';
+          loadServerData();
+          return true;
+        }
+        return false;
+      };
+
+      // Manejo de formularios de autenticación
+      showRegisterBtn.addEventListener('click', () => {
+        loginForm.style.display = 'none';
+        registerForm.style.display = 'block';
+        loginError.style.display = 'none';
+      });
+
+      showLoginBtn.addEventListener('click', () => {
+        registerForm.style.display = 'none';
+        loginForm.style.display = 'block';
+        registerError.style.display = 'none';
+      });
+
+      // Manejo de login
+      loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('login-username').value;
+        const password = document.getElementById('login-password').value;
+
+        // Simulación de autenticación (reemplazar con API real)
+        if (username.length >= 3 && password.length >= 6) {
+          const authData = {
+            username: username,
+            token: 'token_' + Math.random().toString(36).substr(2, 9),
+            loginTime: new Date().toISOString()
+          };
+          
+          localStorage.setItem('syaHostAuth', JSON.stringify(authData));
+          
+          authContainer.style.display = 'none';
+          serverContainer.style.display = 'block';
+          loadServerData();
+        } else {
+          showMessage(loginError, 'Usuario debe tener al menos 3 caracteres y contraseña 6 caracteres');
+        }
+      });
+
+      // Manejo de registro
+      registerForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('register-username').value;
+        const password = document.getElementById('register-password').value;
+        const confirm = document.getElementById('register-confirm').value;
+
+        if (password !== confirm) {
+          showMessage(registerError, 'Las contraseñas no coinciden');
+          return;
+        }
+
+        if (username.length < 3) {
+          showMessage(registerError, 'El nombre de usuario debe tener al menos 3 caracteres');
+          return;
+        }
+
+        if (password.length < 6) {
+          showMessage(registerError, 'La contraseña debe tener al menos 6 caracteres');
+          return;
+        }
+
+        const authData = {
+          username: username,
+          token: 'token_' + Math.random().toString(36).substr(2, 9),
+          loginTime: new Date().toISOString()
+        };
+        
+        localStorage.setItem('syaHostAuth', JSON.stringify(authData));
+        
+        authContainer.style.display = 'none';
+        serverContainer.style.display = 'block';
+        loadServerData();
+      });
+
+      // Manejo de creación de servidor
+      serverForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const existingServer = JSON.parse(localStorage.getItem('syaHostServer') || '{}');
+        if (existingServer.gitUrl) {
+          showMessage(serverError, 'Ya tienes un servidor creado. Solo se permite un servidor por usuario.');
+          return;
+        }
+
+        const gitUrl = gitUrlInput.value.trim();
+        const mainFile = mainFileInput.value.trim() || 'index.js';
+        const description = descriptionInput.value.trim();
+
+        if (!gitUrl || !mainFile) {
+          showMessage(serverError, 'Por favor completa todos los campos requeridos');
+          return;
+        }
+
+        // Validar URL de Git
+        const gitUrlPattern = /^https:\/\/github\.com\/[\w\-\.]+\/[\w\-\.]+\.git$/;
+        if (!gitUrlPattern.test(gitUrl)) {
+          showMessage(serverError, 'Por favor ingresa una URL de Git válida (https://github.com/usuario/repo.git)');
+          return;
+        }
+
+        loadingSpinner.style.display = 'block';
+        createBtn.disabled = true;
+
+        // Simular proceso de creación
+        setTimeout(() => {
+          const serverData = {
+            gitUrl: gitUrl,
+            mainFile: mainFile,
+            description: description,
+            createdAt: new Date().toLocaleDateString(),
+            status: 'active'
+          };
+
+          localStorage.setItem('syaHostServer', JSON.stringify(serverData));
+          
+          loadingSpinner.style.display = 'none';
+          createBtn.disabled = false;
+          
+          showMessage(serverSuccess, '¡Servidor creado exitosamente! Ahora puedes acceder al terminal.');
+          
+          loadServerData();
+        }, 3000);
+      });
+
+      // Botón de terminal
+      terminalBtn.addEventListener('click', () => {
+        // Redirigir a terminal.html
+        window.location.href = 'terminal.html';
+      });
+
+      // Botón de logout
+      logoutBtn.addEventListener('click', () => {
+        localStorage.removeItem('syaHostAuth');
+        authContainer.style.display = 'block';
+        serverContainer.style.display = 'none';
+        loginForm.reset();
+        registerForm.reset();
+        
+        // Resetear vista de login
+        loginForm.style.display = 'block';
+        registerForm.style.display = 'none';
+      });
+
+      // Verificar autenticación al cargar
+      if (!checkAuth()) {
+        authContainer.style.display = 'block';
+        serverContainer.style.display = 'none';
+      }
+
+      // Inicializar preview del comando
+      updateCommandPreview();
+    });
+  </script>
+</body>
+</html>
