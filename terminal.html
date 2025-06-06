@@ -264,7 +264,7 @@
       border: 1px solid rgba(255, 95, 86, 0.3);
     }
 
-    .connection-status.installing {
+    .connection-status.connecting {
       background-color: rgba(255, 138, 0, 0.2);
       color: #FF8A00;
       border: 1px solid rgba(255, 138, 0, 0.3);
@@ -288,7 +288,7 @@
       background-color: #ff5f56;
     }
 
-    .connection-status.installing::before {
+    .connection-status.connecting::before {
       background-color: #FF8A00;
       animation: pulse 1.5s infinite;
     }
@@ -356,7 +356,7 @@
           <input
             type="text"
             id="terminal-input"
-            placeholder="Esperando a que termine la instalación..."
+            placeholder="Conectando al servidor..."
             autocomplete="off"
             disabled
           >
@@ -366,8 +366,8 @@
     </div>
   </div>
 
-  <div id="connection-status" class="connection-status installing">
-    Servidor en instalación
+  <div id="connection-status" class="connection-status connecting">
+    Conectando...
   </div>
 
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -386,8 +386,16 @@
       let socket = null;
       let commandHistory = [];
       let historyIndex = -1;
-      let isInstalling = true;
-      let serverReady = false;
+      let isConnected = false;
+      let connectionAttempts = 0;
+      const maxRetries = 5;
+
+      // URLs del servidor (intentará con ambas)
+      const serverUrls = [
+        "https://syahost-terminal-xv4b.onrender.com",
+        "https://empty-shalne-soymaycol-bc16da7c.koyeb.app"
+      ];
+      let currentServerIndex = 0;
 
       // Verificar autenticación y datos del servidor
       const checkAuth = () => {
@@ -407,127 +415,130 @@
         return { authData, serverData };
       };
 
-      // Función para extraer nombre del repositorio
-      const getRepoName = (url) => {
-        const match = url.match(/\/([^\/]+)\.git$/);
-        return match ? match[1] : url.split('/').pop().replace('.git', '');
+      // Función para escribir en el terminal con delay
+      const writeToTerminal = (text, delay = 0) => {
+        setTimeout(() => {
+          terminalOutput.textContent += text;
+          terminalOutput.scrollTop = terminalOutput.scrollHeight;
+        }, delay);
       };
 
       // Función para ejecutar comando automáticamente
       const executeAutoCommand = (command) => {
-        if (socket && socket.connected) {
-          // Mostrar comando en terminal
-          terminalOutput.textContent += `$ ${command}\n`;
-          terminalOutput.scrollTop = terminalOutput.scrollHeight;
-          
-          // Enviar comando al servidor
+        if (socket && socket.connected && isConnected) {
+          writeToTerminal(`$ ${command}\n`);
           socket.emit('command', command);
-          
-          // Mostrar spinner de carga
           commandLoadingElement.style.display = 'inline-block';
         }
       };
 
-      // Simular instalación del servidor
-      const simulateInstallation = (serverData) => {
-        const repoName = getRepoName(serverData.gitUrl);
-        const installSteps = [
-          { text: "⚡ Iniciando instalación del servidor...\n", delay: 1000 },
-          { text: "📦 Ejecutando: apt update\n", delay: 2000 },
-          { text: "✅ Paquetes actualizados\n", delay: 1000 },
-          { text: "📦 Ejecutando: apt install git\n", delay: 1500 },
-          { text: "✅ Git instalado correctamente\n", delay: 1000 },
-          { text: "📦 Ejecutando: apt install node\n", delay: 2000 },
-          { text: "✅ Node.js instalado correctamente\n", delay: 1000 },
-          { text: `📦 Clonando repositorio: ${serverData.gitUrl}\n`, delay: 2500 },
-          { text: `✅ Repositorio clonado en /${repoName}\n`, delay: 1000 },
-          { text: `📂 Cambiando al directorio: cd ${repoName}\n`, delay: 500 },
-          { text: "📦 Ejecutando: git pull\n", delay: 1500 },
-          { text: "✅ Repositorio actualizado\n", delay: 1000 },
-          { text: "🎉 ¡Instalación completada! Iniciando servidor...\n\n", delay: 1000 }
-        ];
-
-        let currentStep = 0;
-        
-        const executeStep = () => {
-          if (currentStep < installSteps.length) {
-            const step = installSteps[currentStep];
-            terminalOutput.textContent += step.text;
-            terminalOutput.scrollTop = terminalOutput.scrollHeight;
-            
-            currentStep++;
-            
-            if (currentStep === installSteps.length) {
-              // Instalación completada
-              setTimeout(() => {
-                isInstalling = false;
-                serverReady = true;
-                terminalInput.disabled = false;
-                terminalInput.placeholder = "Escribe un comando...";
-                connectionStatus.className = "connection-status connected";
-                connectionStatus.textContent = "Servidor activo";
-                terminalInput.focus();
-                
-                // Conectar socket y luego ejecutar el comando automáticamente
-                connectSocket(() => {
-                  // Ejecutar automáticamente node ${mainFile} después de conectar
-                  setTimeout(() => {
-                    executeAutoCommand(`node ${serverData.mainFile}`);
-                  }, 1000);
-                });
-              }, step.delay);
-            } else {
-              setTimeout(executeStep, step.delay);
-            }
-          }
-        };
-
-        executeStep();
-      };
-
-      // Conectar el socket después de la instalación
-      const connectSocket = (callback) => {
+      // Conectar al servidor
+      const connectToServer = () => {
         const authData = JSON.parse(localStorage.getItem('syaHostAuth') || '{}');
+        const currentUrl = serverUrls[currentServerIndex];
         
-        socket = io("https://syahost-terminal-xv4b.onrender.com", {
-          auth: { token: authData.token }
+        writeToTerminal(`🔗 Intentando conectar a: ${currentUrl}\n`);
+        
+        if (socket) {
+          socket.disconnect();
+        }
+
+        socket = io(currentUrl, {
+          auth: { token: authData.token },
+          timeout: 10000,
+          transports: ['websocket', 'polling']
         });
 
         socket.on("connect", () => {
-          console.log("Socket conectado");
-          if (callback) callback();
+          isConnected = true;
+          connectionAttempts = 0;
+          writeToTerminal("✅ Conexión establecida correctamente\n");
+          writeToTerminal("🚀 Terminal listo para usar\n\n");
+          
+          connectionStatus.className = "connection-status connected";
+          connectionStatus.textContent = "Servidor activo";
+          
+          terminalInput.disabled = false;
+          terminalInput.placeholder = "Escribe un comando...";
+          terminalInput.focus();
+
+          // Ejecutar automáticamente el comando node después de conectar
+          const serverData = JSON.parse(localStorage.getItem('syaHostServer') || '{}');
+          setTimeout(() => {
+            executeAutoCommand(`node ${serverData.mainFile}`);
+          }, 1500);
         });
 
-        socket.on("disconnect", () => {
+        socket.on("disconnect", (reason) => {
+          isConnected = false;
+          writeToTerminal(`\n❌ Desconectado del servidor (${reason})\n`);
           connectionStatus.className = "connection-status disconnected";
           connectionStatus.textContent = "Desconectado";
+          
+          terminalInput.disabled = true;
+          terminalInput.placeholder = "Desconectado del servidor...";
+          
+          // Intentar reconectar
+          setTimeout(() => {
+            if (connectionAttempts < maxRetries) {
+              attemptConnection();
+            }
+          }, 3000);
         });
 
         socket.on("connect_error", (err) => {
-          console.error("Error de conexión:", err.message);
+          writeToTerminal(`❌ Error de conexión: ${err.message}\n`);
+          connectionAttempts++;
+          
+          if (connectionAttempts < maxRetries) {
+            // Cambiar de servidor si es posible
+            if (currentServerIndex < serverUrls.length - 1) {
+              currentServerIndex++;
+              setTimeout(() => connectToServer(), 2000);
+            } else {
+              // Reiniciar desde el primer servidor
+              currentServerIndex = 0;
+              setTimeout(() => connectToServer(), 5000);
+            }
+          } else {
+            writeToTerminal("❌ No se pudo establecer conexión después de múltiples intentos\n");
+            connectionStatus.className = "connection-status disconnected";
+            connectionStatus.textContent = "Error de conexión";
+          }
         });
 
         socket.on("output", (data) => {
-          // Verificar si el proceso fue killed
+          // Verificar si el proceso fue terminado
           if (data.includes("killed") || data.includes("Killed") || data.includes("terminated")) {
-            terminalOutput.textContent += data;
-            terminalOutput.textContent += "\n🔄 Proceso terminado. Reiniciando servidor...\n";
+            writeToTerminal(data);
+            writeToTerminal("\n🔄 Proceso terminado. Reiniciando servidor...\n");
             
             const serverData = JSON.parse(localStorage.getItem('syaHostServer') || '{}');
             setTimeout(() => {
               executeAutoCommand(`node ${serverData.mainFile}`);
             }, 2000);
           } else {
-            terminalOutput.textContent += data;
+            writeToTerminal(data);
           }
           
-          terminalOutput.scrollTop = terminalOutput.scrollHeight;
           commandLoadingElement.style.display = 'none';
         });
 
         socket.on("session", (data) => {
-          userInfoElement.textContent = `${data.username}`;
+          userInfoElement.textContent = data.username;
         });
+
+        socket.on("error", (error) => {
+          writeToTerminal(`❌ Error del servidor: ${error}\n`);
+          commandLoadingElement.style.display = 'none';
+        });
+      };
+
+      // Función para intentar conexión
+      const attemptConnection = () => {
+        connectionStatus.className = "connection-status connecting";
+        connectionStatus.textContent = "Conectando...";
+        connectToServer();
       };
 
       // Función para cerrar sesión
@@ -548,36 +559,24 @@
 
       // Manejo de comandos en el terminal
       terminalInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && serverReady && !isInstalling) {
+        if (e.key === 'Enter' && isConnected) {
           const command = terminalInput.value.trim();
 
-          if (command !== '' && socket && socket.connected) {
+          if (command !== '') {
             // Guardar comando en historial
             commandHistory.push(command);
             historyIndex = commandHistory.length;
 
-            // Mostrar comando en terminal
-            terminalOutput.textContent += `$ ${command}\n`;
-
-            // Enviar comando al servidor
-            socket.emit('command', command);
-
-            // Mostrar spinner de carga
-            commandLoadingElement.style.display = 'inline-block';
+            // Ejecutar comando
+            executeAutoCommand(command);
 
             // Limpiar input
             terminalInput.value = '';
-          } else if (command !== '' && (!socket || !socket.connected)) {
-             terminalOutput.textContent += `$ ${command}\n`;
-             terminalOutput.textContent += "❌ Error: No conectado al servidor.\n";
-             terminalInput.value = '';
           }
-
-          terminalOutput.scrollTop = terminalOutput.scrollHeight;
           e.preventDefault();
         }
         // Navegación en historial
-        else if (e.key === 'ArrowUp' && serverReady) {
+        else if (e.key === 'ArrowUp' && isConnected) {
           if (historyIndex > 0) {
             historyIndex--;
             terminalInput.value = commandHistory[historyIndex];
@@ -588,7 +587,7 @@
           }
           e.preventDefault();
         }
-        else if (e.key === 'ArrowDown' && serverReady) {
+        else if (e.key === 'ArrowDown' && isConnected) {
           if (historyIndex < commandHistory.length - 1) {
             historyIndex++;
             terminalInput.value = commandHistory[historyIndex];
@@ -602,7 +601,7 @@
 
       // Enfocar input al hacer clic en terminal body
       document.querySelector('.terminal-body').addEventListener('click', () => {
-        if (serverReady && !isInstalling) {
+        if (isConnected) {
           terminalInput.focus();
         }
       });
@@ -613,14 +612,14 @@
         const { authData, serverData } = authCheck;
         userInfoElement.textContent = authData.username;
         
-        // Mostrar mensaje inicial
-        terminalOutput.textContent = `🔧 SYA HOST - Configurando servidor para ${authData.username}\n`;
-        terminalOutput.textContent += `📋 Repositorio: ${serverData.gitUrl}\n`;
-        terminalOutput.textContent += `📄 Archivo principal: ${serverData.mainFile}\n\n`;
+        // Mostrar información inicial
+        writeToTerminal(`🔧 SYA HOST - Terminal para ${authData.username}\n`);
+        writeToTerminal(`📋 Repositorio: ${serverData.gitUrl}\n`);
+        writeToTerminal(`📄 Archivo principal: ${serverData.mainFile}\n\n`);
         
-        // Iniciar simulación de instalación
+        // Iniciar conexión real
         setTimeout(() => {
-          simulateInstallation(serverData);
+          attemptConnection();
         }, 1000);
       }
     });
