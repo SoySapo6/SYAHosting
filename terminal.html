@@ -264,7 +264,7 @@
       border: 1px solid rgba(255, 95, 86, 0.3);
     }
 
-    .connection-status.connecting {
+    .connection-status.installing {
       background-color: rgba(255, 138, 0, 0.2);
       color: #FF8A00;
       border: 1px solid rgba(255, 138, 0, 0.3);
@@ -288,7 +288,7 @@
       background-color: #ff5f56;
     }
 
-    .connection-status.connecting::before {
+    .connection-status.installing::before {
       background-color: #FF8A00;
       animation: pulse 1.5s infinite;
     }
@@ -366,7 +366,7 @@
     </div>
   </div>
 
-  <div id="connection-status" class="connection-status connecting">
+  <div id="connection-status" class="connection-status installing">
     Conectando...
   </div>
 
@@ -386,12 +386,10 @@
       let socket = null;
       let commandHistory = [];
       let historyIndex = -1;
-      let isConnecting = false;
-      let reconnectAttempts = 0;
-      const maxReconnectAttempts = 3;
+      let isConnected = false;
 
-      // Lista de servidores para probar
-      const servers = [
+      // URLs de los servidores a probar
+      const serverUrls = [
         'https://syahost-terminal-xv4b.onrender.com',
         'https://empty-shalne-soymaycol-bc16da7c.koyeb.app'
       ];
@@ -415,74 +413,54 @@
         return { authData, serverData };
       };
 
-      // Función para extraer nombre del repositorio
-      const getRepoName = (url) => {
-        const match = url.match(/\/([^\/]+)\.git$/);
-        return match ? match[1] : url.split('/').pop().replace('.git', '');
-      };
+      // Conectar al servidor real
+      const connectToServer = (authData, serverData, serverUrl) => {
+        terminalOutput.textContent += `🔗 Conectando a: ${serverUrl}\n`;
+        connectionStatus.textContent = "Conectando...";
+        connectionStatus.className = "connection-status installing";
 
-      // Conectar al socket con reintentos automáticos
-      const connectSocket = (authData, serverData) => {
-        if (isConnecting) return;
-        
-        isConnecting = true;
-        const serverUrl = servers[currentServerIndex];
-        
-        terminalOutput.textContent += `🔗 Intentando conectar a: ${serverUrl}\n`;
-        terminalOutput.scrollTop = terminalOutput.scrollHeight;
-
-        // Desconectar socket existente
-        if (socket) {
-          socket.disconnect();
-        }
-
+        // Crear socket con el servidor actual
         socket = io(serverUrl, {
           auth: { token: authData.token },
-          timeout: 10000,
-          transports: ['websocket', 'polling']
+          timeout: 10000
         });
-
-        // Timeout para la conexión
-        const connectionTimeout = setTimeout(() => {
-          if (isConnecting) {
-            socket.disconnect();
-            handleConnectionError('Timeout de conexión');
-          }
-        }, 15000);
 
         socket.on("connect", () => {
-          clearTimeout(connectionTimeout);
-          isConnecting = false;
-          reconnectAttempts = 0;
-          
+          isConnected = true;
           terminalOutput.textContent += `✅ Conectado exitosamente a ${serverUrl}\n`;
-          terminalOutput.textContent += `🔧 Configurando servidor para ${authData.username}...\n`;
-          terminalOutput.textContent += `📋 Repositorio: ${serverData.gitUrl}\n`;
-          terminalOutput.textContent += `📄 Archivo principal: ${serverData.mainFile}\n\n`;
-          
-          connectionStatus.className = "connection-status connecting";
-          connectionStatus.textContent = "Instalando servidor...";
-          
-          // Iniciar instalación real
-          startRealInstallation(serverData);
-          
-          terminalOutput.scrollTop = terminalOutput.scrollHeight;
+          connectionStatus.className = "connection-status connected";
+          connectionStatus.textContent = "Servidor activo";
+          terminalInput.disabled = false;
+          terminalInput.placeholder = "Escribe un comando...";
+          terminalInput.focus();
+
+          // Ejecutar instalación real del repositorio
+          executeRealInstallation(serverData);
         });
 
-        socket.on("disconnect", (reason) => {
-          clearTimeout(connectionTimeout);
-          isConnecting = false;
-          
-          terminalOutput.textContent += `\n⚠️ Desconectado: ${reason}\n`;
+        socket.on("disconnect", () => {
+          isConnected = false;
           connectionStatus.className = "connection-status disconnected";
           connectionStatus.textContent = "Desconectado";
-          terminalInput.disabled = true;
-          terminalInput.placeholder = "Desconectado del servidor...";
+          terminalOutput.textContent += "\n⚠️ Conexión perdida. Intentando reconectar...\n";
+          commandLoadingElement.style.display = 'none';
         });
 
         socket.on("connect_error", (err) => {
-          clearTimeout(connectionTimeout);
-          handleConnectionError(err.message);
+          terminalOutput.textContent += `❌ Error de conexión: ${err.message}\n`;
+          
+          // Intentar con el siguiente servidor
+          currentServerIndex++;
+          if (currentServerIndex < serverUrls.length) {
+            setTimeout(() => {
+              connectToServer(authData, serverData, serverUrls[currentServerIndex]);
+            }, 2000);
+          } else {
+            connectionStatus.className = "connection-status disconnected";
+            connectionStatus.textContent = "Error de conexión";
+            terminalOutput.textContent += "\n❌ No se pudo conectar a ningún servidor disponible.\n";
+            terminalOutput.textContent += "🔄 Verifica tu conexión a internet e intenta nuevamente.\n";
+          }
         });
 
         socket.on("output", (data) => {
@@ -494,75 +472,57 @@
         socket.on("session", (data) => {
           userInfoElement.textContent = `${data.username}`;
         });
-
-        socket.on("installation_complete", () => {
-          terminalOutput.textContent += "\n🎉 ¡Instalación completada! Servidor listo para usar.\n\n";
-          connectionStatus.className = "connection-status connected";
-          connectionStatus.textContent = "Servidor activo";
-          terminalInput.disabled = false;
-          terminalInput.placeholder = "Escribe un comando...";
-          terminalInput.focus();
-          terminalOutput.scrollTop = terminalOutput.scrollHeight;
-        });
-
-        socket.on("installation_error", (error) => {
-          terminalOutput.textContent += `\n❌ Error en la instalación: ${error}\n`;
-          terminalOutput.textContent += "🔄 Reintentando instalación...\n\n";
-          
-          setTimeout(() => {
-            startRealInstallation(serverData);
-          }, 3000);
-        });
       };
 
-      // Manejar errores de conexión
-      const handleConnectionError = (error) => {
-        isConnecting = false;
-        terminalOutput.textContent += `❌ Error de conexión: ${error}\n`;
-        
-        // Intentar con el siguiente servidor
-        if (currentServerIndex < servers.length - 1) {
-          currentServerIndex++;
-          terminalOutput.textContent += `🔄 Probando servidor alternativo...\n\n`;
-          setTimeout(() => {
-            const authCheck = checkAuth();
-            if (authCheck) {
-              connectSocket(authCheck.authData, authCheck.serverData);
-            }
-          }, 2000);
-        } else if (reconnectAttempts < maxReconnectAttempts) {
-          // Reiniciar desde el primer servidor
-          currentServerIndex = 0;
-          reconnectAttempts++;
-          terminalOutput.textContent += `🔄 Reintento ${reconnectAttempts}/${maxReconnectAttempts}...\n\n`;
-          setTimeout(() => {
-            const authCheck = checkAuth();
-            if (authCheck) {
-              connectSocket(authCheck.authData, authCheck.serverData);
-            }
-          }, 5000);
-        } else {
-          terminalOutput.textContent += `\n❌ No se pudo conectar a ningún servidor después de ${maxReconnectAttempts} intentos.\n`;
-          terminalOutput.textContent += "🔄 Recarga la página para intentar nuevamente.\n";
-          connectionStatus.className = "connection-status disconnected";
-          connectionStatus.textContent = "Error de conexión";
-        }
-        
-        terminalOutput.scrollTop = terminalOutput.scrollHeight;
-      };
-
-      // Iniciar instalación real del servidor
-      const startRealInstallation = (serverData) => {
-        if (!socket || !socket.connected) return;
-
+      // Ejecutar instalación real del repositorio
+      const executeRealInstallation = (serverData) => {
         const repoName = getRepoName(serverData.gitUrl);
         
-        // Enviar comando de instalación al servidor
-        socket.emit('install_server', {
-          gitUrl: serverData.gitUrl,
-          mainFile: serverData.mainFile,
-          repoName: repoName
-        });
+        terminalOutput.textContent += "\n⚡ Iniciando instalación real del servidor...\n";
+        
+        // Secuencia de comandos reales
+        const installCommands = [
+          'pwd',
+          'ls -la',
+          `git clone ${serverData.gitUrl}`,
+          `cd ${repoName}`,
+          'ls -la',
+          'git pull',
+          'npm install',
+          `node ${serverData.mainFile}`
+        ];
+
+        let commandIndex = 0;
+        
+        const executeNextCommand = () => {
+          if (commandIndex < installCommands.length && socket && socket.connected) {
+            const command = installCommands[commandIndex];
+            
+            setTimeout(() => {
+              terminalOutput.textContent += `$ ${command}\n`;
+              terminalOutput.scrollTop = terminalOutput.scrollHeight;
+              
+              socket.emit('command', command);
+              commandLoadingElement.style.display = 'inline-block';
+              
+              commandIndex++;
+              
+              // Si no es el último comando, continuar después de un delay
+              if (commandIndex < installCommands.length) {
+                setTimeout(executeNextCommand, 3000);
+              }
+            }, 1000);
+          }
+        };
+
+        // Comenzar la instalación
+        executeNextCommand();
+      };
+
+      // Función para extraer nombre del repositorio
+      const getRepoName = (url) => {
+        const match = url.match(/\/([^\/]+)\.git$/);
+        return match ? match[1] : url.split('/').pop().replace('.git', '');
       };
 
       // Función para cerrar sesión
@@ -584,7 +544,7 @@
 
       // Manejo de comandos en el terminal
       terminalInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !terminalInput.disabled) {
+        if (e.key === 'Enter' && isConnected) {
           const command = terminalInput.value.trim();
 
           if (command !== '' && socket && socket.connected) {
@@ -613,7 +573,7 @@
           e.preventDefault();
         }
         // Navegación en historial
-        else if (e.key === 'ArrowUp' && !terminalInput.disabled) {
+        else if (e.key === 'ArrowUp' && isConnected) {
           if (historyIndex > 0) {
             historyIndex--;
             terminalInput.value = commandHistory[historyIndex];
@@ -624,7 +584,7 @@
           }
           e.preventDefault();
         }
-        else if (e.key === 'ArrowDown' && !terminalInput.disabled) {
+        else if (e.key === 'ArrowDown' && isConnected) {
           if (historyIndex < commandHistory.length - 1) {
             historyIndex++;
             terminalInput.value = commandHistory[historyIndex];
@@ -638,7 +598,7 @@
 
       // Enfocar input al hacer clic en terminal body
       document.querySelector('.terminal-body').addEventListener('click', () => {
-        if (!terminalInput.disabled) {
+        if (isConnected) {
           terminalInput.focus();
         }
       });
@@ -650,11 +610,13 @@
         userInfoElement.textContent = authData.username;
         
         // Mostrar mensaje inicial
-        terminalOutput.textContent = `🔧 SYA HOST - Inicializando terminal para ${authData.username}\n\n`;
+        terminalOutput.textContent = `🔧 SYA HOST - Configurando servidor para ${authData.username}\n`;
+        terminalOutput.textContent += `📋 Repositorio: ${serverData.gitUrl}\n`;
+        terminalOutput.textContent += `📄 Archivo principal: ${serverData.mainFile}\n\n`;
         
-        // Conectar al servidor
+        // Intentar conectar al primer servidor
         setTimeout(() => {
-          connectSocket(authData, serverData);
+          connectToServer(authData, serverData, serverUrls[currentServerIndex]);
         }, 1000);
       }
     });
